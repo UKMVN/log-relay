@@ -3,39 +3,73 @@ const WebSocket = require("ws");
 let wss;
 const clients = new Map(); // Map<WebSocket, logId>
 
-const init = (server) => {
-    wss = new WebSocket.Server({ server, path: '/api/logs' });
+const init = (server, options = {}) => {
+  const { onLog } = options;
+  wss = new WebSocket.Server({ server, path: "/api/logs" });
 
-    wss.on('connection', (ws) => {
-        console.log('New WebSocket connection established');
+  wss.on("connection", (ws) => {
+    console.log("New WebSocket connection established");
 
-        ws.on('message', (message) => {
-            try {
-                const data = JSON.parse(message);
+    ws.on("message", async (message) => {
+      try {
+        const data = JSON.parse(message);
 
-                // If message is just for authentication/subscription
-                if (data.type === 'auth' && data.logId) {
-                    clients.set(ws, data.logId);
-                    console.log(`Client subscribed to logId: ${data.logId}`);
-                    ws.send(JSON.stringify({ type: 'status', message: 'Subscribed to updates' }));
-                    return;
-                }
+        // If message is just for authentication/subscription
+        if (data.type === "auth" && data.logId) {
+          clients.set(ws, data.logId);
+          console.log(`Client subscribed to logId: ${data.logId}`);
+          ws.send(
+            JSON.stringify({ type: "status", message: "Subscribed to updates" })
+          );
+          return;
+        }
 
-                // Existing logic for receiving logs via WS can stay, 
-                // but usually we separate "ingestion" from "viewing".
-                // For now, if they send a log creation payload (has level/message), we process it?
-                // The previous code processed it. Let's redirect to service if needed.
-                // But here we mainly care about mapping connections.
-            } catch (error) {
-                console.error('WS Message error:', error);
-            }
-        });
+        if (data.type === "log") {
+          if (!onLog) {
+            ws.send(
+              JSON.stringify({
+                type: "error",
+                message: "Log ingestion is not enabled",
+              })
+            );
+            return;
+          }
 
-        ws.on('close', () => {
-            clients.delete(ws);
-            console.log('WebSocket connection closed');
-        });
+          const effectiveLogId = data.logId || clients.get(ws);
+          if (!effectiveLogId) {
+            ws.send(
+              JSON.stringify({ type: "error", message: "logId is required" })
+            );
+            return;
+          }
+
+          const payload = { ...data, logId: effectiveLogId };
+          const savedLog = await onLog(payload);
+          ws.send(
+            JSON.stringify({
+              type: "ack",
+              message: "Log received",
+              data: savedLog,
+            })
+          );
+          return;
+        }
+      } catch (error) {
+        console.error("WS Message error:", error);
+        ws.send(
+          JSON.stringify({
+            type: "error",
+            message: error.message || "Invalid message",
+          })
+        );
+      }
     });
+
+    ws.on("close", () => {
+      clients.delete(ws);
+      console.log("WebSocket connection closed");
+    });
+  });
 };
 
 const broadcastLog = (log) => {
