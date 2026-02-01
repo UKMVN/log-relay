@@ -3,6 +3,15 @@ const WebSocket = require("ws");
 let wss;
 const clients = new Map(); // Map<WebSocket, logId>
 
+const safeSend = (ws, payload) => {
+  if (ws.readyState !== WebSocket.OPEN) return;
+  try {
+    ws.send(JSON.stringify(payload));
+  } catch (error) {
+    console.error("WS Send error:", error);
+  }
+};
+
 const init = (server, options = {}) => {
   const { onLog } = options;
   wss = new WebSocket.Server({ server, path: "/api/logs" });
@@ -12,63 +21,64 @@ const init = (server, options = {}) => {
 
     ws.on("message", async (message) => {
       try {
-        const data = JSON.parse(message);
+        const raw = typeof message === "string" ? message : message.toString();
+        const data = JSON.parse(raw);
 
         // If message is just for authentication/subscription
         if (data.type === "auth" && data.logId) {
           clients.set(ws, data.logId);
           console.log(`Client subscribed to logId: ${data.logId}`);
-          ws.send(
-            JSON.stringify({ type: "status", message: "Subscribed to updates" })
-          );
+          safeSend(ws, { type: "status", message: "Subscribed to updates" });
           return;
         }
 
         if (data.type === "log") {
           if (!onLog) {
-            ws.send(
-              JSON.stringify({
-                type: "error",
-                message: "Log ingestion is not enabled",
-              })
-            );
+            safeSend(ws, {
+              type: "error",
+              message: "Log ingestion is not enabled",
+            });
             return;
           }
 
           const effectiveLogId = data.logId || clients.get(ws);
           if (!effectiveLogId) {
-            ws.send(
-              JSON.stringify({ type: "error", message: "logId is required" })
-            );
+            safeSend(ws, { type: "error", message: "logId is required" });
             return;
           }
 
           const payload = { ...data, logId: effectiveLogId };
           const savedLog = await onLog(payload);
-          ws.send(
-            JSON.stringify({
-              type: "ack",
-              message: "Log received",
-              data: savedLog,
-            })
-          );
+          safeSend(ws, {
+            type: "ack",
+            message: "Log received",
+            data: savedLog,
+          });
           return;
         }
       } catch (error) {
         console.error("WS Message error:", error);
-        ws.send(
-          JSON.stringify({
-            type: "error",
-            message: error.message || "Invalid message",
-          })
-        );
+        safeSend(ws, {
+          type: "error",
+          message: error.message || "Invalid message",
+        });
       }
     });
 
-    ws.on("close", () => {
+    ws.on("close", (code, reason) => {
       clients.delete(ws);
-      console.log("WebSocket connection closed");
+      const reasonText =
+        typeof reason === "string" ? reason : reason.toString("utf8");
+      console.log(`WebSocket connection closed (${code}) ${reasonText}`);
     });
+
+    ws.on("error", (error) => {
+      console.error("WebSocket connection error:", error);
+    });
+  });
+
+  wss.on("error", (error) => {
+    console.error("WebSocket server error:", error);
   });
 };
 
@@ -96,7 +106,7 @@ const broadcastLog = (log) => {
       // This passed `log` needs to identify its owner.
       // If log has `logId` property attached (it doesn't naturally), we pass it.
       if (log.logId === clientLogId) {
-        clientWs.send(JSON.stringify({ type: "new_log", data: log }));
+        safeSend(clientWs, { type: "new_log", data: log });
       }
     }
   });
