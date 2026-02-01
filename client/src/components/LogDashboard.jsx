@@ -9,10 +9,12 @@ import { RefreshCw, LogOut, Activity } from "lucide-react";
 export default function LogDashboard() {
     const [logs, setLogs] = useState([]);
     const [status, setStatus] = useState('Connecting...');
+    const [copyStatus, setCopyStatus] = useState('');
     const [viewMode, setViewMode] = useState('table');
     const navigate = useNavigate();
     const ws = useRef(null);
     const terminalRef = useRef(null);
+    const copyTimerRef = useRef(null);
 
     const logId = localStorage.getItem('logId');
     const username = localStorage.getItem('username');
@@ -100,6 +102,27 @@ export default function LogDashboard() {
         navigate('/');
     };
 
+    const handleCopyLogId = async () => {
+        if (!logId) {
+            setCopyStatus('Log ID not found');
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(logId);
+            setCopyStatus('Copied');
+        } catch (err) {
+            setCopyStatus('Copy failed');
+        }
+
+        if (copyTimerRef.current) {
+            clearTimeout(copyTimerRef.current);
+        }
+        copyTimerRef.current = setTimeout(() => {
+            setCopyStatus('');
+        }, 2000);
+    };
+
     const getLevelBadge = (level) => {
         switch (level) {
             case 'error': return <Badge variant="destructive">ERROR</Badge>;
@@ -117,6 +140,10 @@ export default function LogDashboard() {
                     <div className="flex items-center gap-2">
                         <h1 className="text-xl font-bold">Log Dashboard</h1>
                         <span className="text-sm text-gray-500">for {username}</span>
+                        <span className="text-sm text-gray-500">Log ID:</span>
+                        <span className="text-xs font-mono bg-gray-100 text-gray-700 px-2 py-1 rounded border">
+                            {logId || '-'}
+                        </span>
                         <Badge variant="outline" className={status === 'Live' ? 'text-green-600 border-green-600' : 'text-red-500'}>
                             <Activity className="w-3 h-3 mr-1" />
                             {status}
@@ -141,6 +168,14 @@ export default function LogDashboard() {
                             <RefreshCw className="w-4 h-4 mr-2" />
                             Refresh
                         </Button>
+                        <Button variant="outline" size="sm" onClick={handleCopyLogId}>
+                            Copy Log ID
+                        </Button>
+                        {copyStatus ? (
+                            <span className="text-xs text-gray-500 self-center">
+                                {copyStatus}
+                            </span>
+                        ) : null}
                         <Button variant="destructive" size="sm" onClick={handleLogout}>
                             <LogOut className="w-4 h-4 mr-2" />
                             Logout
