@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="navbar">
+        <h2>Log Dashboard</h2>
+        <div class="user-info">
+            <span id="displayUsername"></span>
+            <button id="logoutBtn">Logout</button>
+        </div>
+    </div>
+
+    <div class="container dashboard-container">
+        <div class="controls">
+            <button id="refreshBtn">Refresh Logs</button>
+            <span id="status">Connecting...</span>
+        </div>
+
+        <div class="logs-wrapper">
+            <table id="logsTable">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Level</th>
+                        <th>Service</th>
+                        <th>Message</th>
+                        <th>Meta</th>
+                    </tr>
+                </thead>
+                <tbody id="logsBody">
+                    <!-- Logs will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <script src="js/dashboard.js"></script>
+</body>
+
+</html>
