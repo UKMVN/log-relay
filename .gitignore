@@ -1,0 +1,5 @@
+# MongoDB data files
+/mongo/data/
+
+.env
+/node_modules
