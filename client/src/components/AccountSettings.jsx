@@ -64,6 +64,7 @@ export default function AccountSettings() {
                 setLogIdCustom(data.data.logIdCustom || '');
             } else {
                 setError(data.error || 'Failed to update logIdCustom');
+                setToast(data.error || 'Failed to update logIdCustom');
             }
         } catch (err) {
             setError('Connection failed. Is the server running?');
@@ -90,6 +91,7 @@ export default function AccountSettings() {
                 setLogRetentionDays(data.data.logRetentionDays ?? 30);
             } else {
                 setError(data.error || 'Failed to update retention');
+                setToast(data.error || 'Failed to update retention');
             }
         } catch (err) {
             setError('Connection failed. Is the server running?');
@@ -101,7 +103,11 @@ export default function AccountSettings() {
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
             {toast ? (
-                <div className="fixed top-4 right-4 z-50 rounded-md bg-green-600 text-white px-4 py-2 shadow-lg">
+                <div
+                    className={`fixed top-4 right-4 z-50 rounded-md px-4 py-2 shadow-lg text-white ${
+                        error ? 'bg-red-600' : 'bg-green-600'
+                    }`}
+                >
                     {toast}
                 </div>
             ) : null}
