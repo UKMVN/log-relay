@@ -286,6 +286,9 @@ export default function LogDashboard() {
                         <Button variant="outline" size="sm" onClick={handleCopyLogId}>
                             Copy Log ID
                         </Button>
+                        <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
+                            Settings
+                        </Button>
                         {copyStatus ? (
                             <span className="text-xs text-gray-500 self-center">
                                 {copyStatus}

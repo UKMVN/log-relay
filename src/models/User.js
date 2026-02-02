@@ -13,6 +13,15 @@ const UserSchema = new mongoose.Schema({
         unique: true,
         default: () => crypto.randomUUID()
     },
+    logIdCustom: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+    logRetentionDays: {
+        type: Number,
+        default: 30
+    },
     createdAt: {
         type: Date,
         default: Date.now
