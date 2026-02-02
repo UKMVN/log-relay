@@ -32,6 +32,11 @@ const init = (server, options = {}) => {
           return;
         }
 
+        if (data.type === "ping") {
+          safeSend(ws, { type: "pong", ts: Date.now() });
+          return;
+        }
+
         if (data.type === "log") {
           if (!onLog) {
             safeSend(ws, {

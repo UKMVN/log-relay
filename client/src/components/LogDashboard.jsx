@@ -10,11 +10,22 @@ export default function LogDashboard() {
     const [logs, setLogs] = useState([]);
     const [status, setStatus] = useState('Connecting...');
     const [copyStatus, setCopyStatus] = useState('');
+    const [flashEnabled, setFlashEnabled] = useState(() => {
+        return localStorage.getItem('flashEnabled') !== 'false';
+    });
+    const [flashActive, setFlashActive] = useState(false);
     const [viewMode, setViewMode] = useState('table');
     const navigate = useNavigate();
     const ws = useRef(null);
     const terminalRef = useRef(null);
     const copyTimerRef = useRef(null);
+    const flashTimerRef = useRef(null);
+    const lastTimeLogRef = useRef(null);
+    const reconnectTimerRef = useRef(null);
+    const reconnectAttemptsRef = useRef(0);
+    const shouldReconnectRef = useRef(true);
+    const pingIntervalRef = useRef(null);
+    const lastPongRef = useRef(null);
 
     const logId = localStorage.getItem('logId');
     const username = localStorage.getItem('username');
@@ -29,6 +40,13 @@ export default function LogDashboard() {
         connectWebSocket();
 
         return () => {
+            shouldReconnectRef.current = false;
+            if (reconnectTimerRef.current) {
+                clearTimeout(reconnectTimerRef.current);
+            }
+            if (pingIntervalRef.current) {
+                clearInterval(pingIntervalRef.current);
+            }
             if (ws.current) ws.current.close();
         };
     }, [logId, navigate]);
@@ -38,6 +56,34 @@ export default function LogDashboard() {
         if (!terminalRef.current) return;
         terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }, [logs, viewMode]);
+
+    useEffect(() => {
+        if (!logs || logs.length === 0) return;
+
+        const getLogTime = (log) => {
+            if (typeof log.timeLog === 'number') return log.timeLog;
+            return new Date(log.timestamp).getTime();
+        };
+
+        const newestTime = logs.reduce((maxTime, log) => {
+            const currentTime = getLogTime(log);
+            return currentTime > maxTime ? currentTime : maxTime;
+        }, 0);
+
+        if (lastTimeLogRef.current !== null && newestTime > lastTimeLogRef.current) {
+            if (flashEnabled) {
+                setFlashActive(true);
+                if (flashTimerRef.current) {
+                    clearTimeout(flashTimerRef.current);
+                }
+                flashTimerRef.current = setTimeout(() => {
+                    setFlashActive(false);
+                }, 600);
+            }
+        }
+
+        lastTimeLogRef.current = newestTime;
+    }, [logs, flashEnabled]);
 
     const fetchLogs = async () => {
         try {
@@ -58,17 +104,40 @@ export default function LogDashboard() {
     };
 
     const connectWebSocket = () => {
+        if (reconnectTimerRef.current) {
+            clearTimeout(reconnectTimerRef.current);
+        }
+        if (ws.current) {
+            ws.current.close();
+        }
+        if (pingIntervalRef.current) {
+            clearInterval(pingIntervalRef.current);
+        }
+
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         // When using vite proxy, window.location.host is localhost:5173. 
         // The proxy creates a tunnel. However, for WS proxying in Vite, we typically connect to 
         // `ws://localhost:5173/api/logs` and vite forwards it.
 
+        setStatus('Connecting...');
         ws.current = new WebSocket(`${protocol}//${window.location.host}/api/logs`);
 
         ws.current.onopen = () => {
             setStatus('Live');
+            reconnectAttemptsRef.current = 0;
             // Authenticate/Subscribe
             ws.current.send(JSON.stringify({ type: 'auth', logId }));
+
+            lastPongRef.current = Date.now();
+            pingIntervalRef.current = setInterval(() => {
+                if (!ws.current || ws.current.readyState !== WebSocket.OPEN) return;
+                ws.current.send(JSON.stringify({ type: 'ping' }));
+
+                const lastPong = lastPongRef.current || 0;
+                if (Date.now() - lastPong > 45000) {
+                    ws.current.close();
+                }
+            }, 15000);
         };
 
         ws.current.onmessage = (event) => {
@@ -79,6 +148,8 @@ export default function LogDashboard() {
                     setLogs(prevLogs => [message.data, ...prevLogs].slice(0, 100));
                 } else if (message.type === 'status') {
                     console.log('WS Status:', message.message);
+                } else if (message.type === 'pong') {
+                    lastPongRef.current = Date.now();
                 }
             } catch (e) {
                 console.error('WS Parse error', e);
@@ -87,7 +158,19 @@ export default function LogDashboard() {
 
         ws.current.onclose = () => {
             setStatus('Disconnected');
-            // Reconnect logic could go here
+            if (pingIntervalRef.current) {
+                clearInterval(pingIntervalRef.current);
+                pingIntervalRef.current = null;
+            }
+            if (shouldReconnectRef.current) {
+                const attempt = reconnectAttemptsRef.current + 1;
+                reconnectAttemptsRef.current = attempt;
+                const delay = Math.min(1000 * (2 ** (attempt - 1)), 15000);
+                setStatus(`Reconnecting in ${Math.ceil(delay / 1000)}s`);
+                reconnectTimerRef.current = setTimeout(() => {
+                    connectWebSocket();
+                }, delay);
+            }
         };
 
         ws.current.onerror = (err) => {
@@ -121,6 +204,12 @@ export default function LogDashboard() {
         copyTimerRef.current = setTimeout(() => {
             setCopyStatus('');
         }, 2000);
+    };
+
+    const toggleFlash = () => {
+        const nextValue = !flashEnabled;
+        setFlashEnabled(nextValue);
+        localStorage.setItem('flashEnabled', nextValue ? 'true' : 'false');
     };
 
     const getLevelBadge = (level) => {
@@ -168,6 +257,9 @@ export default function LogDashboard() {
                             <RefreshCw className="w-4 h-4 mr-2" />
                             Refresh
                         </Button>
+                        <Button variant="outline" size="sm" onClick={toggleFlash}>
+                            Flash: {flashEnabled ? 'On' : 'Off'}
+                        </Button>
                         <Button variant="outline" size="sm" onClick={handleCopyLogId}>
                             Copy Log ID
                         </Button>
@@ -183,7 +275,7 @@ export default function LogDashboard() {
                     </div>
                 </div>
 
-                <Card>
+                <Card className={flashActive ? 'flash-once' : ''}>
                     <CardHeader>
                         <CardTitle>Recent Logs</CardTitle>
                     </CardHeader>
