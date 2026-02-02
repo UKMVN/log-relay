@@ -230,6 +230,8 @@ export default function LogDashboard() {
         localStorage.setItem('terminalLines', String(value));
     };
 
+    const displayedTerminalCount = Math.min(logs.length, terminalLines);
+
     const getLevelBadge = (level) => {
         switch (level) {
             case 'error': return <Badge variant="destructive">ERROR</Badge>;
@@ -300,7 +302,7 @@ export default function LogDashboard() {
                     <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle>Recent Logs</CardTitle>
                         <label className="text-xs text-gray-500 flex items-center">
-                            Lines
+                            Lines {displayedTerminalCount}/{terminalLines}
                             <select
                                 className="ml-2 border rounded px-2 py-1 text-xs text-gray-700"
                                 value={terminalLines}
