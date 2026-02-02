@@ -145,13 +145,13 @@ export default function LogDashboard() {
             }, 15000);
         };
 
-        ws.current.onmessage = (event) => {
+        ws.current.onmessage = (event) => { 
             try {
                 const message = JSON.parse(event.data);
                 if (message.type === 'new_log') {
                     if (!pauseLogs) {
                         // Add new log to top
-                        setLogs(prevLogs => [message.data, ...prevLogs].slice(0, 100));
+                        setLogs(prevLogs => [message.data, ...prevLogs].slice(0, terminalLines));
                     }
                 } else if (message.type === 'status') {
                     console.log('WS Status:', message.message);
