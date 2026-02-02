@@ -15,6 +15,11 @@ export default function LogDashboard() {
     });
     const [flashActive, setFlashActive] = useState(false);
     const [viewMode, setViewMode] = useState('table');
+    const [pauseLogs, setPauseLogs] = useState(false);
+    const [terminalLines, setTerminalLines] = useState(() => {
+        const stored = Number(localStorage.getItem('terminalLines'));
+        return Number.isFinite(stored) && stored > 0 ? stored : 2000;
+    });
     const navigate = useNavigate();
     const ws = useRef(null);
     const terminalRef = useRef(null);
@@ -144,8 +149,10 @@ export default function LogDashboard() {
             try {
                 const message = JSON.parse(event.data);
                 if (message.type === 'new_log') {
-                    // Add new log to top
-                    setLogs(prevLogs => [message.data, ...prevLogs].slice(0, 100));
+                    if (!pauseLogs) {
+                        // Add new log to top
+                        setLogs(prevLogs => [message.data, ...prevLogs].slice(0, 100));
+                    }
                 } else if (message.type === 'status') {
                     console.log('WS Status:', message.message);
                 } else if (message.type === 'pong') {
@@ -212,6 +219,17 @@ export default function LogDashboard() {
         localStorage.setItem('flashEnabled', nextValue ? 'true' : 'false');
     };
 
+    const togglePauseLogs = () => {
+        setPauseLogs(prev => !prev);
+    };
+
+    const handleTerminalLinesChange = (event) => {
+        const value = Number(event.target.value);
+        if (!Number.isFinite(value) || value <= 0) return;
+        setTerminalLines(value);
+        localStorage.setItem('terminalLines', String(value));
+    };
+
     const getLevelBadge = (level) => {
         switch (level) {
             case 'error': return <Badge variant="destructive">ERROR</Badge>;
@@ -257,6 +275,9 @@ export default function LogDashboard() {
                             <RefreshCw className="w-4 h-4 mr-2" />
                             Refresh
                         </Button>
+                        <Button variant={pauseLogs ? 'default' : 'outline'} size="sm" onClick={togglePauseLogs}>
+                            {pauseLogs ? 'Resume Logs' : 'Pause Logs'}
+                        </Button>
                         <Button variant="outline" size="sm" onClick={toggleFlash}>
                             Flash: {flashEnabled ? 'On' : 'Off'}
                         </Button>
@@ -276,8 +297,21 @@ export default function LogDashboard() {
                 </div>
 
                 <Card className={flashActive ? 'flash-once' : ''}>
-                    <CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle>Recent Logs</CardTitle>
+                        <label className="text-xs text-gray-500 flex items-center">
+                            Lines
+                            <select
+                                className="ml-2 border rounded px-2 py-1 text-xs text-gray-700"
+                                value={terminalLines}
+                                onChange={handleTerminalLinesChange}
+                            >
+                                <option value={500}>500</option>
+                                <option value={1000}>1000</option>
+                                <option value={2000}>2000</option>
+                                <option value={5000}>5000</option>
+                            </select>
+                        </label>
                     </CardHeader>
                     <CardContent>
                         {viewMode === 'table' ? (
@@ -328,7 +362,7 @@ export default function LogDashboard() {
                                     <div className="text-gray-400">No logs found.</div>
                                 ) : (
                                     [...logs]
-                                        .slice(0, 500)
+                                        .slice(0, terminalLines)
                                         .reverse()
                                         .map((log) => (
                                             <div key={log._id || Math.random()} className="whitespace-pre-wrap break-words">
