@@ -1,7 +1,7 @@
 const WebSocket = require("ws");
 
 let wss;
-const clients = new Map(); // Map<WebSocket, logId>
+const clients = new Map(); // Map<WebSocket, { logId, logIdCustom }>
 
 const safeSend = (ws, payload) => {
   if (ws.readyState !== WebSocket.OPEN) return;
@@ -25,9 +25,13 @@ const init = (server, options = {}) => {
         const data = JSON.parse(raw);
 
         // If message is just for authentication/subscription
-        if (data.type === "auth" && data.logId) {
-          clients.set(ws, data.logId);
-          console.log(`Client subscribed to logId: ${data.logId}`);
+        if (data.type === "auth" && (data.logId || data.logIdCustom)) {
+          const logId = data.logId || null;
+          const logIdCustom = data.logIdCustom || null;
+          clients.set(ws, { logId, logIdCustom });
+          console.log(
+            `Client subscribed to logId: ${logId || "-"} logIdCustom: ${logIdCustom || "-"}`
+          );
           safeSend(ws, { type: "status", message: "Subscribed to updates" });
           return;
         }
@@ -46,13 +50,23 @@ const init = (server, options = {}) => {
             return;
           }
 
-          const effectiveLogId = data.logId || clients.get(ws);
-          if (!effectiveLogId) {
-            safeSend(ws, { type: "error", message: "logId is required" });
+          const clientInfo = clients.get(ws) || {};
+          const effectiveLogId = data.logId || clientInfo.logId;
+          const effectiveLogIdCustom = data.logIdCustom || clientInfo.logIdCustom;
+
+          if (!effectiveLogId && !effectiveLogIdCustom) {
+            safeSend(ws, {
+              type: "error",
+              message: "logId or logIdCustom is required",
+            });
             return;
           }
 
-          const payload = { ...data, logId: effectiveLogId };
+          const payload = {
+            ...data,
+            logId: effectiveLogId,
+            logIdCustom: effectiveLogIdCustom,
+          };
           const savedLog = await onLog(payload);
           safeSend(ws, {
             type: "ack",
@@ -105,12 +119,12 @@ const broadcastLog = (log) => {
 
   // OPTION: The service passes (log, logIdString).
 
-  clients.forEach((clientLogId, clientWs) => {
+  clients.forEach((clientInfo, clientWs) => {
     if (clientWs.readyState === WebSocket.OPEN) {
-      // We need to match clientLogId with the log's owner.
-      // This passed `log` needs to identify its owner.
-      // If log has `logId` property attached (it doesn't naturally), we pass it.
-      if (log.logId === clientLogId) {
+      if (
+        (clientInfo.logId && log.logId === clientInfo.logId) ||
+        (clientInfo.logIdCustom && log.logIdCustom === clientInfo.logIdCustom)
+      ) {
         safeSend(clientWs, { type: "new_log", data: log });
       }
     }

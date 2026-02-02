@@ -11,7 +11,9 @@ exports.createLog = async (req, res) => {
   } catch (error) {
     if (
       error.message === "logId is required" ||
-      error.message === "Invalid logId"
+      error.message === "Invalid logId" ||
+      error.message === "logId or logIdCustom is required" ||
+      error.message === "Invalid logId or logIdCustom"
     ) {
       res.status(400).json({ success: false, error: error.message });
     } else {
