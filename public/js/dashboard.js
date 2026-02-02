@@ -8,6 +8,33 @@ if (!logId) {
 document.getElementById("displayUsername").textContent = username || "User";
 document.getElementById("displayLogId").textContent = logId || "";
 
+const flashStorageKey = "flashEnabled";
+let flashEnabled = localStorage.getItem(flashStorageKey) !== "false";
+let lastTimeLog = null;
+
+const flashToggleBtn = document.getElementById("flashToggleBtn");
+const logsWrapper = document.querySelector(".logs-wrapper");
+
+const updateFlashToggleLabel = () => {
+  flashToggleBtn.textContent = `Flash: ${flashEnabled ? "On" : "Off"}`;
+};
+
+const triggerFlash = () => {
+  if (!flashEnabled || !logsWrapper) return;
+  logsWrapper.classList.remove("flash-once");
+  requestAnimationFrame(() => {
+    logsWrapper.classList.add("flash-once");
+  });
+};
+
+updateFlashToggleLabel();
+
+flashToggleBtn.addEventListener("click", () => {
+  flashEnabled = !flashEnabled;
+  localStorage.setItem(flashStorageKey, flashEnabled ? "true" : "false");
+  updateFlashToggleLabel();
+});
+
 const setStatus = (message) => {
   const statusEl = document.getElementById("status");
   if (statusEl) {
@@ -66,7 +93,31 @@ const renderLogs = (logs) => {
   const tbody = document.getElementById("logsBody");
   tbody.innerHTML = "";
 
-  logs.forEach((log) => {
+  const sortedLogs = [...logs].sort((a, b) => {
+    const aTime =
+      typeof a.timeLog === "number"
+        ? a.timeLog
+        : new Date(a.timestamp).getTime();
+    const bTime =
+      typeof b.timeLog === "number"
+        ? b.timeLog
+        : new Date(b.timestamp).getTime();
+    return bTime - aTime;
+  });
+
+  if (sortedLogs.length > 0) {
+    const newestTime =
+      typeof sortedLogs[0].timeLog === "number"
+        ? sortedLogs[0].timeLog
+        : new Date(sortedLogs[0].timestamp).getTime();
+
+    if (lastTimeLog !== null && newestTime > lastTimeLog) {
+      triggerFlash();
+    }
+    lastTimeLog = newestTime;
+  }
+
+  sortedLogs.forEach((log) => {
     const row = document.createElement("tr");
     const date = new Date(log.timestamp).toLocaleString();
     const meta = log.meta ? JSON.stringify(log.meta) : "-";

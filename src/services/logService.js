@@ -4,7 +4,7 @@ const User = require('../models/User');
 const socketManager = require('../socketManager');
 
 exports.processLogEntry = async (data) => {
-    const { level, message, service, meta, logId } = data;
+    const { level, message, service, meta, logId, timeLog } = data;
 
     if (!logId) {
         throw new Error('logId is required');
@@ -20,6 +20,7 @@ exports.processLogEntry = async (data) => {
         message,
         service,
         meta,
+        timeLog: timeLog || Date.now(),
         user: user._id
     });
 

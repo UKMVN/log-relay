@@ -14,6 +14,10 @@ const LogSchema = new mongoose.Schema({
         type: String,
         default: 'default-service'
     },
+    timeLog: {
+        type: Number,
+        default: Date.now
+    },
     timestamp: {
         type: Date,
         default: Date.now
