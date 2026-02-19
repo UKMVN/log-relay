@@ -16,6 +16,9 @@ export default function LogDashboard() {
     const [flashActive, setFlashActive] = useState(false);
     const [viewMode, setViewMode] = useState('table');
     const [pauseLogs, setPauseLogs] = useState(false);
+    const [autoScrollEnabled, setAutoScrollEnabled] = useState(() => {
+        return localStorage.getItem('autoScrollEnabled') !== 'false';
+    });
     const [terminalLines, setTerminalLines] = useState(() => {
         const stored = Number(localStorage.getItem('terminalLines'));
         return Number.isFinite(stored) && stored > 0 ? stored : 2000;
@@ -58,9 +61,10 @@ export default function LogDashboard() {
 
     useEffect(() => {
         if (viewMode !== 'terminal') return;
+        if (!autoScrollEnabled) return;
         if (!terminalRef.current) return;
         terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-    }, [logs, viewMode]);
+    }, [logs, viewMode, autoScrollEnabled]);
 
     useEffect(() => {
         if (!logs || logs.length === 0) return;
@@ -223,6 +227,13 @@ export default function LogDashboard() {
         setPauseLogs(prev => !prev);
     };
 
+    const toggleAutoScroll = () => {
+        const nextValue = !autoScrollEnabled;
+        setAutoScrollEnabled(nextValue);
+        localStorage.setItem('autoScrollEnabled', nextValue ? 'true' : 'false');
+    };
+
+
     const handleTerminalLinesChange = (event) => {
         const value = Number(event.target.value);
         if (!Number.isFinite(value) || value <= 0) return;
@@ -304,19 +315,28 @@ export default function LogDashboard() {
                 <Card className={flashActive ? 'flash-once' : ''}>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <CardTitle>Recent Logs</CardTitle>
-                        <label className="text-xs text-gray-500 flex items-center">
-                            Lines {displayedTerminalCount}/{terminalLines}
-                            <select
-                                className="ml-2 border rounded px-2 py-1 text-xs text-gray-700"
-                                value={terminalLines}
-                                onChange={handleTerminalLinesChange}
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant={autoScrollEnabled ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={toggleAutoScroll}
                             >
-                                <option value={500}>500</option>
-                                <option value={1000}>1000</option>
-                                <option value={2000}>2000</option>
-                                <option value={5000}>5000</option>
-                            </select>
-                        </label>
+                                Auto-scroll: {autoScrollEnabled ? 'On' : 'Off'}
+                            </Button>
+                            <label className="text-xs text-gray-500 flex items-center">
+                                Lines {displayedTerminalCount}/{terminalLines}
+                                <select
+                                    className="ml-2 border rounded px-2 py-1 text-xs text-gray-700"
+                                    value={terminalLines}
+                                    onChange={handleTerminalLinesChange}
+                                >
+                                    <option value={500}>500</option>
+                                    <option value={1000}>1000</option>
+                                    <option value={2000}>2000</option>
+                                    <option value={5000}>5000</option>
+                                </select>
+                            </label>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         {viewMode === 'table' ? (
